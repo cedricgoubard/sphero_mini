@@ -1,0 +1,9 @@
+# Conf files
+config/sphero_conf.json
+
+# IDE files
+.vscode/
+
+# Python files
+*.egg-info/
+**/__pycache__/**

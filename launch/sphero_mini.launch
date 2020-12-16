@@ -1,0 +1,6 @@
+<launch>
+    <param name='conf_file_path' value='$(find sphero_mini)/config/sphero_conf.json'></param>
+    <group ns="sphero">
+        <node pkg="sphero_mini" name="sphero" type="sphero_main.py"/>
+    </group>
+</launch>
