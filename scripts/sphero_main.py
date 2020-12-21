@@ -77,9 +77,8 @@ def get_sensors_data(sphero):
     }
     
 
-def publish_imu(pub, sphero):
+def publish_imu(pub, sensors_values):
     i = Imu()
-    sensors_values = get_sensors_data(sphero)
 
     i.header.stamp = rospy.Time.now()
     i.orientation = create_quaternion(
@@ -100,11 +99,13 @@ def publish_imu(pub, sphero):
     pub.publish(i)
 
 
-def main(sphero):
-    rospy.init_node('sphero', anonymous=True)   
+def main():
+    rospy.init_node('sphero', anonymous=True, log_level=rospy.INFO)   
     rate = rospy.Rate(10)  # 10 Hz
 
     pub = rospy.Publisher("/imu", Imu, queue_size=5)
+
+    sphero = connect()
 
     sphero.configureSensorMask(
         IMU_yaw=True,
@@ -120,16 +121,18 @@ def main(sphero):
     sphero.configureSensorStream()
 
     while not rospy.is_shutdown():
-        publish_imu(pub, sphero)
+        sensors_values = get_sensors_data(sphero)
+        #rospy.logdebug(sensors_values)
+        publish_imu(pub, sensors_values)
+        sphero.setLEDColor(red = 0, green = 255, blue = 0) # Turn LEDs green
         rate.sleep()
 
 
 if __name__ == "__main__":
-    sphero = connect()
 
     try:
-        main(sphero)
+        main()
     except Exception as e: # rospy.ROSInterruptException
-        disconnect(sphero)
+        # TODO: disconnect(sphero)
         raise e
     
