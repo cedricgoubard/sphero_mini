@@ -99,13 +99,11 @@ def publish_imu(pub, sensors_values):
     pub.publish(i)
 
 
-def main():
-    rospy.init_node('sphero', anonymous=True, log_level=rospy.INFO)   
+def main(sphero):
+    rospy.init_node('sphero', anonymous=True, log_level=rospy.DEBUG)   
     rate = rospy.Rate(10)  # 10 Hz
 
     pub = rospy.Publisher("/imu", Imu, queue_size=5)
-
-    sphero = connect()
 
     sphero.configureSensorMask(
         IMU_yaw=True,
@@ -129,10 +127,10 @@ def main():
 
 
 if __name__ == "__main__":
-
+    sphero = connect()
     try:
-        main()
+        main(sphero)
     except Exception as e: # rospy.ROSInterruptException
-        # TODO: disconnect(sphero)
+        disconnect(sphero)
         raise e
     
