@@ -1,3 +1,4 @@
+import rospy
 from bluepy.btle import Peripheral
 from bluepy import btle
 from sphero_mini._constants import *
@@ -23,18 +24,18 @@ class SpheroMini():
         self.firmware_version = [] # will be updated with firware version when sphero.returnMainApplicationVersion() is called
 
         if self.verbosity > 0:
-            print("[INFO] Connecting to", MACAddr)
+            rospy.logdebug("[INFO] Connecting to %s", MACAddr)
         self.p = Peripheral(MACAddr, "random") #connect
 
         if self.verbosity > 1:
-            print("[INIT] Initializing")
+            rospy.logdebug("[INIT] Initializing")
 
         # Subscribe to notifications
         self.sphero_delegate = MyDelegate(self, user_delegate) # Pass a reference to this instance when initializing
         self.p.setDelegate(self.sphero_delegate)
 
         if self.verbosity > 1:
-            print("[INIT] Read all characteristics and descriptors")
+            rospy.logdebug("[INIT] Read all characteristics and descriptors")
         # Get characteristics and descriptors
         self.API_V2_characteristic = self.p.getCharacteristics(uuid="00010002-574f-4f20-5370-6865726f2121")[0]
         self.AntiDOS_characteristic = self.p.getCharacteristics(uuid="00020005-574f-4f20-5370-6865726f2121")[0]
@@ -46,33 +47,33 @@ class SpheroMini():
         # The rest of this sequence was observed during bluetooth sniffing:
         # Unlock code: prevent the sphero mini from going to sleep again after 10 seconds
         if self.verbosity > 1:
-            print("[INIT] Writing AntiDOS characteristic unlock code")
+            rospy.logdebug("[INIT] Writing AntiDOS characteristic unlock code")
         self.AntiDOS_characteristic.write("usetheforce...band".encode(), withResponse=True)
 
         # Enable DFU notifications:
         if self.verbosity > 1:
-            print("[INIT] Configuring DFU descriptor")
+            rospy.logdebug("[INIT] Configuring DFU descriptor")
         self.DFU_descriptor.write(struct.pack('<bb', 0x01, 0x00), withResponse = True)
 
         # No idea what this is for. Possibly a device ID of sorts? Read request returns '00 00 09 00 0c 00 02 02':
         if self.verbosity > 1:
-            print("[INIT] Reading DFU2 characteristic")
+            rospy.logdebug("[INIT] Reading DFU2 characteristic")
         _ = self.DFU2_characteristic.read()
 
         # Enable API notifications:
         if self.verbosity > 1:
-            print("[INIT] Configuring API dectriptor")
+            rospy.logdebug("[INIT] Configuring API dectriptor")
         self.API_descriptor.write(struct.pack('<bb', 0x01, 0x00), withResponse = True)
 
         self.wake()
 
         # Finished initializing:
         if self.verbosity > 1:
-            print("[INIT] Initialization complete\n")
+            rospy.logdebug("[INIT] Initialization complete\n")
 
     def disconnect(self):
         if self.verbosity > 0:
-            print("[INFO] Disconnecting")
+            rospy.logdebug("[INFO] Disconnecting")
         
         self.p.disconnect()
 
@@ -82,7 +83,7 @@ class SpheroMini():
         If in deep sleep, the device should be connected to USB power to wake.
         '''
         if self.verbosity > 2:
-            print("[SEND {}] Waking".format(self.sequence))
+            rospy.logdebug("[SEND {}] Waking".format(self.sequence))
         
         self._send(characteristic=self.API_V2_characteristic,
                    devID=deviceID['powerInfo'],
@@ -98,7 +99,7 @@ class SpheroMini():
         if deepSleep:
             sleepCommID=powerCommandIDs["deepSleep"]
             if self.verbosity > 0:
-                print("[INFO] Going into deep sleep. Connect USB power to wake.")
+                rospy.logdebug("[INFO] Going into deep sleep. Connect USB power to wake.")
         else:
             sleepCommID=powerCommandIDs["sleep"]
         self._send(characteristic=self.API_V2_characteristic,
@@ -111,7 +112,7 @@ class SpheroMini():
         Set device LED color based on RGB vales (each can  range between 0 and 0xFF)
         '''
         if self.verbosity > 2:
-            print("[SEND {}] Setting main LED colour to [{}, {}, {}]".format(self.sequence, red, green, blue))
+            rospy.logdebug("[SEND {}] Setting main LED colour to [{}, {}, {}]".format(self.sequence, red, green, blue))
         
         self._send(characteristic = self.API_V2_characteristic,
                   devID = deviceID['userIO'], # 0x1a
@@ -127,7 +128,7 @@ class SpheroMini():
         NOTE: this is not the same as aiming - it only turns on the LED
         '''
         if self.verbosity > 2:
-            print("[SEND {}] Setting backlight intensity to {}".format(self.sequence, brightness))
+            rospy.logdebug("[SEND {}] Setting backlight intensity to {}".format(self.sequence, brightness))
 
         self._send(characteristic = self.API_V2_characteristic,
                   devID = deviceID['userIO'],
@@ -146,10 +147,10 @@ class SpheroMini():
         seem that the sphero doesn't honor the heading argument
         '''
         if self.verbosity > 2:
-            print("[SEND {}] Rolling with speed {} and heading {}".format(self.sequence, speed, heading))
+            rospy.logdebug("[SEND {}] Rolling with speed {} and heading {}".format(self.sequence, speed, heading))
     
         if abs(speed) > 255:
-            print("WARNING: roll speed parameter outside of allowed range (-255 to +255)")
+            rospy.logdebug("WARNING: roll speed parameter outside of allowed range (-255 to +255)")
 
         if speed < 0:
             speed = -1*speed+256 # speed values > 256 in the send packet make the spero go in reverse
@@ -172,7 +173,7 @@ class SpheroMini():
         Once the heading has been set, call stabilization(True).
         '''
         if self.verbosity > 2:
-            print("[SEND {}] Resetting heading".format(self.sequence))
+            rospy.logdebug("[SEND {}] Resetting heading".format(self.sequence))
     
         self._send(characteristic = self.API_V2_characteristic,
                   devID = deviceID['driving'],
@@ -186,7 +187,7 @@ class SpheroMini():
         Sends command to return application data in a notification
         '''
         if self.verbosity > 2:
-            print("[SEND {}] Requesting firmware version".format(self.sequence))
+            rospy.logdebug("[SEND {}] Requesting firmware version".format(self.sequence))
     
         self._send(self.API_V2_characteristic,
                    devID = deviceID['systemInfo'],
@@ -201,7 +202,7 @@ class SpheroMini():
         Data printed to console screen by the handleNotifications() method in the MyDelegate class.
         '''
         if self.verbosity > 2:
-            print("[SEND {}] Requesting battery voltage".format(self.sequence))
+            rospy.logdebug("[SEND {}] Requesting battery voltage".format(self.sequence))
     
         self._send(self.API_V2_characteristic,
                    devID=deviceID['powerInfo'],
@@ -216,11 +217,11 @@ class SpheroMini():
         '''
         if stab == True:
             if self.verbosity > 2:
-                    print("[SEND {}] Enabling stabilization".format(self.sequence))
+                    rospy.logdebug("[SEND {}] Enabling stabilization".format(self.sequence))
             val = 1
         else:
             if self.verbosity > 2:
-                    print("[SEND {}] Disabling stabilization".format(self.sequence))
+                    rospy.logdebug("[SEND {}] Disabling stabilization".format(self.sequence))
             val = 0
         self._send(self.API_V2_characteristic,
                    devID=deviceID['driving'],
@@ -293,16 +294,16 @@ class SpheroMini():
             self.p.waitForNotifications(1)
             if self.sphero_delegate.notification_seq == self.sequence-1: # use one less than sequence, because _send function increments it for next send. 
                 if self.verbosity > 3:
-                    print("[RESP {}] {}".format(self.sequence-1, self.sphero_delegate.notification_ack))
+                    rospy.logdebug("[RESP {}] {}".format(self.sequence-1, self.sphero_delegate.notification_ack))
                 self.sphero_delegate.clear_notification()
                 break
             elif self.sphero_delegate.notification_seq >= 0:
-                print("Unexpected ACK. Expected: {}/{}, received: {}/{}".format(
+                rospy.logdebug("Unexpected ACK. Expected: {}/{}, received: {}/{}".format(
                     ack, self.sequence, self.sphero_delegate.notification_ack.split()[0],
-                    self.sphero_delegate.notification_seq),
-                    file=sys.stderr)
+                    self.sphero_delegate.notification_seq)
+                    )
             if time.time() > start + 10:
-                print("Timeout waiting for acknowledgement: {}/{}".format(ack, self.sequence), file=sys.stderr)
+                rospy.logdebug("Timeout waiting for acknowledgement: {}/{}".format(ack, self.sequence))
                 break
 
 # =======================================================================
@@ -335,7 +336,7 @@ class SpheroMini():
         '''
         
         if self.verbosity > 2:
-            print("[SEND {}] Configuring collision detection".format(self.sequence))
+            rospy.logdebug("[SEND {}] Configuring collision detection".format(self.sequence))
     
         self._send(self.API_V2_characteristic,
                    devID=deviceID['sensor'],
@@ -359,7 +360,7 @@ class SpheroMini():
         bitfield4 = 0b00000000 # Unknown function - needs experimenting
 
         if self.verbosity > 2:
-            print("[SEND {}] Configuring sensor stream".format(self.sequence))
+            rospy.logdebug("[SEND {}] Configuring sensor stream".format(self.sequence))
     
         self._send(self.API_V2_characteristic,
                    devID=deviceID['sensor'],
@@ -400,7 +401,7 @@ class SpheroMini():
                          (IMU_gyro_y<<4) + (IMU_gyro_x<<2) + (IMU_gyro_z<<2))
         
         if self.verbosity > 2:
-            print("[SEND {}] Configuring sensor mask".format(self.sequence))
+            rospy.logdebug("[SEND {}] Configuring sensor mask".format(self.sequence))
     
         self._send(self.API_V2_characteristic,
                    devID=deviceID['sensor'],
@@ -419,7 +420,7 @@ class SpheroMini():
         Since the sensor values arrive as unlabelled lists in the order that they appear in the bitfields above, we need 
         to create a list of sensors that have been configured.Once we have this list, then in the default_delegate class, 
         we can get sensor values as attributes of the sphero_mini class.
-        e.g. print(sphero.IMU_yaw) # displays the current yaw angle
+        e.g. rospy.logdebug(sphero.IMU_yaw) # displays the current yaw angle
         '''
 
         # Initialize dictionary with sensor names as keys and their bool values (set by the user) as values:
@@ -504,6 +505,8 @@ class MyDelegate(btle.DefaultDelegate):
         if self.user_delegate != None:
             if self.user_delegate.handleNotification(cHandle, data):
                 return
+        
+        rospy.logdebug("Received notification with packet %s", str(data))
 
         for data_byte in data: # parse each byte separately (sometimes they arrive simultaneously)
 
@@ -518,7 +521,7 @@ class MyDelegate(btle.DefaultDelegate):
                 try:
                     start, flags_bits, devid, commcode, seq, *notification_payload, chsum, end = self.notificationPacket
                 except ValueError:
-                    print("Warning: notification packet unparseable", self.notificationPacket, file=sys.stderr)
+                    rospy.logdebug("Warning: notification packet unparseable %s", self.notificationPacket)
                     self.notificationPacket = [] # Discard this packet
                     return # exit
 
@@ -533,7 +536,7 @@ class MyDelegate(btle.DefaultDelegate):
                     checksum = (checksum + num) & 0xFF # bitwise "and to get modulo 256 sum of appropriate bytes
                 checksum = 0xff - checksum # bitwise 'not' to invert checksum bits
                 if checksum != chsum: # check computed checksum against that recieved in the packet
-                    print("Warning: notification packet checksum failed", self.notificationPacket, file=sys.stderr)
+                    rospy.logdebug("Warning: notification packet checksum failed - %s", str(self.notificationPacket))
                     self.notificationPacket = [] # Discard this packet
                     return # exit
 
@@ -583,8 +586,8 @@ class MyDelegate(btle.DefaultDelegate):
                         self.sphero_class.firmware_version = notification_payload
                                                 
                     else:
-                        self.notification_ack = "Unknown acknowledgement" #print(self.notificationPacket)
-                        print(self.notificationPacket, "===================> Unknown ack packet")
+                        self.notification_ack = "Unknown acknowledgement" #rospy.logdebug(self.notificationPacket)
+                        rospy.logdebug(self.notificationPacket, "===================> Unknown ack packet")
 
                     self.notification_seq = seq
 
@@ -598,10 +601,10 @@ class MyDelegate(btle.DefaultDelegate):
                             dir = "Left/right"
                         else:
                             dir = 'Forward/back'
-                        print("Collision detected:")
-                        print("\tAxis:", dir)
-                        print("\tX_mag:", X_mag)
-                        print("\tY_mag:", Y_mag)
+                        rospy.logdebug("Collision detected:")
+                        rospy.logdebug("\tAxis: %s", dir)
+                        rospy.logdebug("\tX_mag: %s", X_mag)
+                        rospy.logdebug("\tY_mag: %s", Y_mag)
 
                         if self.sphero_class.collision_detection_callback is not None:
                             self.notificationPacket = [] # need to clear packet, in case new notification comes in during callback
@@ -625,11 +628,12 @@ class MyDelegate(btle.DefaultDelegate):
 
                         # Set sensor values as class attributes:
                         for name, value in zip(self.sphero_class.configured_sensors, nums):
+                            rospy.logdebug("Setting sensor %s at %s.", name, str(value))
                             setattr(self.sphero_class, name, value)
                         
                     # Unrecognized packet structure:
                     else:
-                        self.notification_ack = "Unknown asynchronous notification" #print(self.notificationPacket)
-                        print(self.notificationPacket, "===================> Unknown async packet")
+                        self.notification_ack = "Unknown asynchronous notification" #rospy.logdebug(self.notificationPacket)
+                        rospy.logdebug(str(self.notificationPacket) + " ===================> Unknown async packet")
                         
                 self.notificationPacket = [] # Start new payload after this byte
